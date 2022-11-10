@@ -10,10 +10,18 @@ import {
   Text,
   TextInput,
   View,
-} from "react-native";  
+} from "react-native";
 
 import SelectDropdown from "react-native-select-dropdown";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import numeral from "numeral";
+import uuid from "react-native-uuid";
+// import jsonSorting from "json-sorting";
+// import { nanoid } from "nanoid";
+
+// data
+import citiesJson from "./cities.json";
+// console.log(cities.data)
 
 export default function App() {
   const [weight, setWeight] = useState(1);
@@ -28,12 +36,15 @@ export default function App() {
   const [lng_b, setLng_b] = useState(null);
   const [distance, setDistance] = useState(null);
 
+  // let citiesData = jsonSorting(citiesJson, "city", "string")
+  
   const [histories, setHistories] = useState([]);
-  const [cities, setCities] = useState([]);
+  const [cities, setCities] = useState(citiesJson);
 
   const dropdownRef_a = useRef({});
   const dropdownRef_b = useRef({});
 
+  // measure distance
   function deg2rad(deg) {
     return deg * (Math.PI / 180);
   }
@@ -52,6 +63,7 @@ export default function App() {
     return d;
   }
 
+  // reset form paket
   function reset() {
     setWeight(1);
     setDetail("");
@@ -62,65 +74,154 @@ export default function App() {
     setDistance(null);
   }
 
-  async function submitForm() {
+  // API REQUEST ->
+
+  // async function submitForm() {
+  //   if (city_a && city_b && detail) {
+  //     setLoading(true);
+  //     const data = {
+  //       weight: weight,
+  //       city_a: city_a,
+  //       city_b: city_b,
+  //       detail: detail,
+  //     };
+  //     fetch("http://localhost:8000/api/histori", {
+  //       method: "POST",
+  //       headers: {
+  //         Accept: "application/json",
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify(data),
+  //     });
+  //     getHistories();
+  //     reset();
+  //     setLoading(false);
+  //   }
+  // }
+  // async function getHistories() {
+  //   return fetch("http://localhost:8000/api/histori")
+  //     .then((response) => response.json())
+  //     .then((responseJson) => {
+  //       // console.log("data : ", responseJson.data);
+  //       setHistories(responseJson.data);
+  //     })
+  //     .catch((error) => {
+  //       console.error(error);
+  //     });
+  // }
+  // async function getCities() {
+  //   return fetch("http://localhost:8000/api/cities")
+  //     .then((response) => response.json())
+  //     .then((responseJson) => {
+  //       // console.log("data : ", responseJson.data);
+  //       setCities(responseJson.data);
+  //     })
+  //     .catch((error) => {
+  //       console.error(error);
+  //     });
+  // }
+  //
+  // useEffect(() => {
+  //   getCities();
+  //   getHistories();
+  // }, []);
+
+  // Local Storage Setup ->
+
+  async function historyInit() {
+    var prevHistories = await AsyncStorage.getItem("@histories");
+    if (prevHistories) {
+      prevHistories = JSON.parse(prevHistories);
+      setHistories(prevHistories);
+    } else {
+      await AsyncStorage.setItem("@histories", JSON.stringify([]));
+      setHistories([]);
+    }
+  }
+  useEffect(() => {
+    historyInit();
+  }, []);
+
+  async function submitFormLocal() {
     if (city_a && city_b && detail) {
       setLoading(true);
       const data = {
-        weight: weight,
+        _id: uuid.v4(),
         city_a: city_a,
         city_b: city_b,
         detail: detail,
+        weight: weight,
+        distance: distance,
+        ongkir: weight * distance * 100,
       };
-      fetch("http://localhost:8000/api/histori", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-      getHistories();
+      let newHistories = histories;
+      newHistories.push(data);
+
+      newHistories = JSON.stringify(newHistories);
+      console.log(newHistories);
+      await AsyncStorage.setItem("@histories", newHistories);
+      console.log(await AsyncStorage.getItem("@histories"));
+
       reset();
+      historyInit();
       setLoading(false);
     }
   }
-  async function getHistories() {
-    return fetch("http://localhost:8000/api/histori")
-      .then((response) => response.json())
-      .then((responseJson) => {
-        // console.log("data : ", responseJson.data);
-        setHistories(responseJson.data);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
+
+  // debuger
+  async function getAllLocalData() {
+    AsyncStorage.clear();
   }
-  async function getCities() {
-    return fetch("http://localhost:8000/api/cities")
-      .then((response) => response.json())
-      .then((responseJson) => {
-        // console.log("data : ", responseJson.data);
-        setCities(responseJson.data);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
+  async function logger() {
+    const keys = await AsyncStorage.getAllKeys();
+    const result = await AsyncStorage.multiGet(keys);
+    console.log("All :");
+    console.log(result);
+    console.log("histories state :");
+    console.log(histories);
+    // historyInit()
   }
 
-  useEffect(() => {
-    getCities();
-    getHistories();
-  }, []);
+  // check distance when value changes
   useEffect(() => {
     if (city_a && city_b) {
-      console.log(getDistance(lat_a, lng_a, lat_b, lng_b));
       setDistance(getDistance(lat_a, lng_a, lat_b, lng_b));
+      // console.log(getDistance(lat_a, lng_a, lat_b, lng_b));
     }
   }, [city_a, city_b]);
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.mainView}>
+
+        {/* <Pressable onPress={logger} style={styles.buttonRefresh} title="Submit">
+          <Text
+            style={{
+              color: "#777",
+              fontWeight: "bold",
+              fontSize: 28,
+            }}
+          >
+            Log
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={getAllLocalData}
+          style={styles.buttonRefresh}
+          title="Submit"
+        >
+          <Text
+            style={{
+              color: "#777",
+              fontWeight: "bold",
+              fontSize: 28,
+              marginBottom: 12,
+            }}
+          >
+            ↻
+          </Text>
+        </Pressable> */}
+
         {/* <Text style={styles.text}>Hello World!</Text> */}
         <Text style={styles.text}>Kirim Paket 📦</Text>
         <View style={{ marginBottom: 16 }}>
@@ -156,10 +257,9 @@ export default function App() {
                 }}
                 data={cities}
                 onSelect={(selectedItem, index) => {
-                  setCity_a(selectedItem.id);
+                  setCity_a(selectedItem);
                   setLat_a(selectedItem.lat);
                   setLng_a(selectedItem.lng);
-                  console.log(city_a);
                 }}
                 buttonTextAfterSelection={(selectedItem, index) => {
                   return selectedItem.city;
@@ -190,10 +290,9 @@ export default function App() {
                 }}
                 data={cities}
                 onSelect={(selectedItem, index) => {
-                  setCity_b(selectedItem.id);
+                  setCity_b(selectedItem);
                   setLat_b(selectedItem.lat);
                   setLng_b(selectedItem.lng);
-                  console.log(city_b);
                 }}
                 buttonTextAfterSelection={(selectedItem, index) => {
                   return selectedItem.city;
@@ -203,12 +302,18 @@ export default function App() {
                 }}
               />
             </View>
-            
           </View>
           {distance && (
             <Text
-              style={{ marginTop: 8, color: "skyblue",fontWeight: '900', fontSize: 16 }}
-            >{`ℹ️ Jarak ${distance}Km | Berat ${weight}Kg | Ongkir Rp ${numeral(distance * weight * 500).format('0,0')}`}</Text>
+              style={{
+                marginTop: 8,
+                color: "blue",
+                fontWeight: "700",
+                fontSize: 16,
+              }}
+            >{`ℹ️ Jarak ${distance}Km | Berat ${weight}Kg | Ongkir Rp ${numeral(
+              distance * weight * 100
+            ).format("0,0")}`}</Text>
           )}
 
           <Text style={[styles.textList, { color: "#555", marginTop: 16 }]}>
@@ -240,9 +345,9 @@ export default function App() {
                 </Text>
               </Pressable>
               <Pressable
-                onPress={submitForm}
+                onPress={submitFormLocal}
                 style={styles.button}
-                title="Submit"
+                title="Kirim"
               >
                 <Text
                   style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}
@@ -252,7 +357,6 @@ export default function App() {
               </Pressable>
             </View>
           )}
-
         </View>
 
         <View
@@ -266,7 +370,7 @@ export default function App() {
         >
           <Text style={styles.text}>History 📝</Text>
           <Pressable
-            onPress={getHistories}
+            onPress={historyInit}
             style={styles.buttonRefresh}
             title="Submit"
           >
@@ -282,11 +386,12 @@ export default function App() {
             </Text>
           </Pressable>
         </View>
+
         {histories?.length > 0 &&
           histories.map((history) => {
             return (
               <View
-                key={history.id}
+                key={history._id}
                 style={{
                   backgroundColor: "#f5f5f5",
                   padding: 16,
@@ -295,9 +400,14 @@ export default function App() {
                 }}
               >
                 <View style={{ display: "flex", flexDirection: "row" }}>
-                  <Text
-                    style={{ fontSize: 18 }}
-                  >{`Paket #${history.id} (${history.city_a}-${history.city_b})`}</Text>
+                  <View>
+                    <Text
+                      style={{ fontSize: 18, width: 300 }}
+                    >{`${history.city_a.city} - ${history.city_b.city}`}</Text>
+                    <Text
+                      style={{ fontSize: 10, width: 300, color: "#666" }}
+                    >{`ID #${history._id}`}</Text>
+                  </View>
                   <Text
                     style={{
                       fontWeight: "bold",
@@ -308,11 +418,11 @@ export default function App() {
                 </View>
 
                 <Text
-                  style={{ marginTop: 8, color: "#777" }}
+                  style={{ marginTop: 16, color: "#777" }}
                 >{`Detail: Jarak ${history.distance}Km | Berat ${history.weight}Kg`}</Text>
-                <Text
+                {/* <Text
                   style={{ marginTop: 0, color: "#777" }}
-                >{`Driver: ${history.driver.name}`}</Text>
+                >{`Driver: ${history.driver.name}`}</Text> */}
                 <Text
                   style={{
                     marginTop: 0,
@@ -320,6 +430,8 @@ export default function App() {
                     textAlign: "justify",
                   }}
                 >{`Alamat: ${history.detail}`}</Text>
+
+                
               </View>
             );
           })}
